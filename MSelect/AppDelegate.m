@@ -24,7 +24,7 @@
   NSString *host = [defaults objectForKey:@"host"];
   NSNumber *port = [defaults objectForKey:@"port"];
   
-  if (host && port) {
+  if (!host || !port) {
     host = @"0.0.0.0";
     port = @(4477);
   }

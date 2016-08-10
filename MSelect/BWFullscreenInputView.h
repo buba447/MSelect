@@ -10,7 +10,9 @@
 
 @interface BWFullscreenInputView : UIView
 
-+ (void)showInView:(UIView *)view
+@property (nonatomic, readonly) UITextField *textEntryField;
+
++ (BWFullscreenInputView *)showInView:(UIView *)view
              title:(NSString *)title
    placeholderText:(NSString *)placeholder
         completion:(void (^)(BOOL didCancel, NSString *outputString))completion;

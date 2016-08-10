@@ -8,6 +8,7 @@
 
 #import "BWFullscreenInputView.h"
 #import "CGGeometryAdditions.h"
+#import "UIColor+mcAdditions.h"
 
 @interface BWFullscreenInputView () <UITextFieldDelegate>
 
@@ -16,12 +17,11 @@
 @end
 
 @implementation BWFullscreenInputView {
-  UITextField *_newItemTextField;
   UILabel *_titleLabel;
   NSString *_placeholder;
 }
 
-+ (void)showInView:(UIView *)view
++ (BWFullscreenInputView *)showInView:(UIView *)view
              title:(NSString *)title
    placeholderText:(NSString *)placeholder
         completion:(void (^)(BOOL didCancel, NSString *outputString))completion {
@@ -31,6 +31,7 @@
                                                                     andCompletion:completion];
   [view addSubview:inputView];
   [inputView _startNewItemFlow];
+  return inputView;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
@@ -44,7 +45,7 @@
     
     self.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     self.alpha = 0.0;
-    self.backgroundColor =  [[UIColor lightGrayColor] colorWithAlphaComponent:0.4];
+    self.backgroundColor =  [[UIColor mayaBackgroundColor] colorWithAlphaComponent:0.7];
     
     UIButton *cancelFlow = [UIButton buttonWithType:UIButtonTypeCustom];
     cancelFlow.bounds = self.bounds;
@@ -52,17 +53,18 @@
     [cancelFlow addTarget:self action:@selector(_endNewItemFlowCancelledPressed:) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:cancelFlow];
     
-    _newItemTextField = [[UITextField alloc] initWithFrame:CGRectZero];
-    _newItemTextField.placeholder = placeholder;
-    _newItemTextField.textColor = [UIColor whiteColor];
-    _newItemTextField.clearsOnBeginEditing = YES;
-    _newItemTextField.font = [UIFont boldSystemFontOfSize:48];
-    [self addSubview:_newItemTextField];
+    _textEntryField = [[UITextField alloc] initWithFrame:CGRectZero];
+    _textEntryField.placeholder = placeholder;
+    _textEntryField.textColor = [UIColor whiteColor];
+    _textEntryField.clearsOnBeginEditing = YES;
+    _textEntryField.font = [UIFont boldSystemFontOfSize:48];
+    [self addSubview:_textEntryField];
     
     _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     _titleLabel.text = title;
-    _titleLabel.font = [UIFont systemFontOfSize:48];
+    _titleLabel.font = [UIFont systemFontOfSize:22];
     _titleLabel.textColor = [UIColor whiteColor];
+    _titleLabel.numberOfLines = 0;
     [self addSubview:_titleLabel];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(textFieldChanged:) name:UITextFieldTextDidChangeNotification object:nil];
@@ -72,25 +74,25 @@
 }
 
 - (void)_startNewItemFlow {;
-  _newItemTextField.text = nil;
-  _newItemTextField.delegate = self;
+  _textEntryField.text = nil;
+  _textEntryField.delegate = self;
   [self _layoutItemTextField];
   
   [UIView animateWithDuration:0.3 animations:^{
     self.alpha = 1.0;
   } completion:^(BOOL finished) {
-    [_newItemTextField becomeFirstResponder];
+    [_textEntryField becomeFirstResponder];
   }];
 }
 
 - (void)_endNewItemFlowCancelled:(BOOL)cancelled {
-  _newItemTextField.delegate = nil;
-  [_newItemTextField resignFirstResponder];
+  _textEntryField.delegate = nil;
+  [_textEntryField resignFirstResponder];
   [UIView animateWithDuration:0.3 animations:^{
     self.alpha = 0;
   } completion:^(BOOL finished) {
     if (self.completion) {
-      self.completion(cancelled, _newItemTextField.text);
+      self.completion(cancelled, _textEntryField.text);
     }
     [self removeFromSuperview];
   }];
@@ -99,13 +101,15 @@
 - (void)layoutSubviews {
   [super layoutSubviews];
   [self _layoutItemTextField];
-  CGSize labelSize = [_titleLabel sizeThatFits:self.bounds.size];
-  _titleLabel.frame = CGRectAttachedTopToRect(_newItemTextField.frame, labelSize, 10, YES);
+  CGSize labelConstraint = self.bounds.size;
+  labelConstraint.width = floorf(labelConstraint.width * 0.7);
+  CGSize labelSize = [_titleLabel sizeThatFits:labelConstraint];
+  _titleLabel.frame = CGRectAttachedBottomToRect(_textEntryField.frame, labelSize, 10, YES);
 }
 
 - (void)_layoutItemTextField {
-  CGSize fieldSize = [_newItemTextField sizeThatFits:self.bounds.size];
-  _newItemTextField.frame = CGRectFramedCenteredInRect(self.bounds, fieldSize, YES);
+  CGSize fieldSize = [_textEntryField sizeThatFits:self.bounds.size];
+  _textEntryField.frame = CGRectFramedCenteredInRect(self.bounds, fieldSize, YES);
 }
 
 - (void)_endNewItemFlowCancelledPressed:(id)sender {
@@ -117,7 +121,7 @@
 }
 
 - (void)textFieldChanged:(NSNotificationCenter *)notification {
-  _newItemTextField.placeholder = (_newItemTextField.text.length == 0) ? _placeholder : nil;
+  _textEntryField.placeholder = (_textEntryField.text.length == 0) ? _placeholder : nil;
   [self _layoutItemTextField];
 }
 

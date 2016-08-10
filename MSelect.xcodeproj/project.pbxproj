@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4872BEB81D10F6570028E0B3 /* MCommand.m in Sources */ = {isa = PBXBuildFile; fileRef = 4872BEB71D10F6570028E0B3 /* MCommand.m */; };
 		4889914A1D0CE4C900425189 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 488991491D0CE4C900425189 /* main.m */; };
 		4889914D1D0CE4C900425189 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 4889914C1D0CE4C900425189 /* AppDelegate.m */; };
 		488991501D0CE4C900425189 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4889914F1D0CE4C900425189 /* ViewController.m */; };
@@ -24,6 +25,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		4872BEB61D10F6570028E0B3 /* MCommand.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MCommand.h; sourceTree = "<group>"; };
+		4872BEB71D10F6570028E0B3 /* MCommand.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MCommand.m; sourceTree = "<group>"; };
 		488991451D0CE4C900425189 /* MSelect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MSelect.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		488991491D0CE4C900425189 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		4889914B1D0CE4C900425189 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -86,6 +89,8 @@
 				4889914C1D0CE4C900425189 /* AppDelegate.m */,
 				4889915F1D0CE51600425189 /* MCanvasButton.h */,
 				488991601D0CE51600425189 /* MCanvasButton.m */,
+				4872BEB61D10F6570028E0B3 /* MCommand.h */,
+				4872BEB71D10F6570028E0B3 /* MCommand.m */,
 				4889914E1D0CE4C900425189 /* ViewController.h */,
 				4889914F1D0CE4C900425189 /* ViewController.m */,
 				488991751D0D2A4700425189 /* BWFullScreenSelectionView.h */,
@@ -203,6 +208,7 @@
 				488991501D0CE4C900425189 /* ViewController.m in Sources */,
 				4889914D1D0CE4C900425189 /* AppDelegate.m in Sources */,
 				488991641D0CE55500425189 /* UIColor+mcAdditions.m in Sources */,
+				4872BEB81D10F6570028E0B3 /* MCommand.m in Sources */,
 				488991771D0D2A4700425189 /* BWFullScreenSelectionView.m in Sources */,
 				488991741D0CFA0A00425189 /* CGGeometryAdditions.m in Sources */,
 				488991711D0CF86700425189 /* BWFullscreenInputView.m in Sources */,
@@ -320,6 +326,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = MSelect/Info.plist;
@@ -328,6 +335,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "-.MSelect";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
 		};
@@ -335,6 +343,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = MSelect/Info.plist;

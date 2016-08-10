@@ -87,6 +87,8 @@ static MCStreamClient *sharedClient = nil;
   if (completion) {
     newRequest.completionBlock = ^(MCStreamRequest *response) {
       NSString *string = [NSString stringWithUTF8String:[response.responseData bytes]];
+      NSLog(@"Command: %@", command);
+      NSLog(@"Response: %@", string);
       completion(string);
     };
   }
@@ -113,6 +115,8 @@ static MCStreamClient *sharedClient = nil;
       id responseObject = nil;
       NSString *string = [NSString stringWithUTF8String:[response.responseData bytes]];
       if (string) {
+        NSLog(@"Command: %@", command);
+        NSLog(@"Response: %@", string);
         NSData *metOfficeData = [string dataUsingEncoding:NSUTF8StringEncoding];
         id jsonObject = [NSJSONSerialization JSONObjectWithData:metOfficeData options:kNilOptions error:&error];
         if (!error) {
@@ -181,7 +185,7 @@ static MCStreamClient *sharedClient = nil;
     if (nextRequest.status == MCStreamStatusWaiting) {
       nextRequest.status = MCStreamStatusActive;
       NSData *data = [nextRequest.pyCommand dataUsingEncoding:NSUTF8StringEncoding];
-      [socket_ writeData:data withTimeout:5 tag:47];
+      [socket_ writeData:data withTimeout:2 tag:47];
     }
   }
   
@@ -238,6 +242,28 @@ static MCStreamClient *sharedClient = nil;
     [requests_ removeObject:currentRequest];
     [self startQueueIfNecessary];
   });
+}
+
+- (NSTimeInterval)socket:(GCDAsyncSocket *)sock shouldTimeoutWriteWithTag:(long)tag
+                 elapsed:(NSTimeInterval)elapsed
+               bytesDone:(NSUInteger)length {
+  NSLog(@"Timeout Write");
+  return 0.2;
+}
+
+- (NSTimeInterval)socket:(GCDAsyncSocket *)sock shouldTimeoutReadWithTag:(long)tag
+                 elapsed:(NSTimeInterval)elapsed
+               bytesDone:(NSUInteger)length {
+  NSLog(@"Timeout read");
+  return 0.2;
+}
+
+- (void)socket:(GCDAsyncSocket *)sock didWritePartialDataOfLength:(NSUInteger)partialLength tag:(long)tag {
+  NSLog(@"Partial Write");
+}
+
+- (void)socket:(GCDAsyncSocket *)sock didReadPartialDataOfLength:(NSUInteger)partialLength tag:(long)tag {
+  NSLog(@"Partial Read");
 }
 
 @end

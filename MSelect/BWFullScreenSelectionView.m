@@ -8,6 +8,7 @@
 
 #import "BWFullScreenSelectionView.h"
 #import "CGGeometryAdditions.h"
+#import "UIColor+mcAdditions.h"
 
 @interface BWCenteredTableViewCell : UITableViewCell
 
@@ -26,7 +27,7 @@
   self.backgroundColor = [UIColor clearColor];
   self.contentView.backgroundColor = [UIColor clearColor];
   self.textLabel.textColor = [UIColor whiteColor];
-  self.textLabel.font = [UIFont boldSystemFontOfSize:48];
+  self.textLabel.font = [UIFont boldSystemFontOfSize:32];
 }
 
 @end
@@ -59,7 +60,7 @@
     _options = [optionsWithCancel copy];
     self.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     self.alpha = 0.0;
-    self.backgroundColor =  [[UIColor lightGrayColor] colorWithAlphaComponent:0.4];
+    self.backgroundColor =  [[UIColor mayaBackgroundColor] colorWithAlphaComponent:0.7];
     
     UIButton *cancelFlow = [UIButton buttonWithType:UIButtonTypeCustom];
     cancelFlow.bounds = self.bounds;
@@ -90,7 +91,7 @@
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-  return 60;
+  return 44;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {

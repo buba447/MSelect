@@ -43,4 +43,13 @@
   [self _updateBackgroundColor];
 }
 
+- (void)updateTitle {
+  [self setTitle:self.command.name forState:UIControlStateNormal];
+}
+
+- (void)setCommand:(MCommand *)command {
+  _command = command;
+  [self updateTitle];
+}
+
 @end

@@ -23,8 +23,6 @@
   UIPanGestureRecognizer *_panGesture;
   
   NSMutableArray *_canvasButtons;
-  NSMutableArray *_selections;
-  CGPoint _newItemCenterPoint;
   
   UIView *_canvasContainer;
   
@@ -37,14 +35,14 @@
   NSString *_currentLoadedScene;
   NSArray *_availableScenes;
   BOOL _lockedScene;
+  float _x;
 }
 
 - (void)viewDidLoad {
   [super viewDidLoad];
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_mayaDidConnect:) name:kMayaConnectionDidBegin object:nil];
-  
+  _x = 0;
   _canvasButtons = [NSMutableArray array];
-  _selections = [NSMutableArray array];
   self.view.backgroundColor = [UIColor mayaBackgroundColor];
   
   _canvasContainer = [[UIView alloc] initWithFrame:self.view.bounds];
@@ -89,15 +87,21 @@
   [_canvasContainer addGestureRecognizer:_panGesture];
 }
 
+#pragma mark -- Gestures
+
 - (void)handleLongPress:(UILongPressGestureRecognizer *)press {
+  CGPoint loc = [press locationInView:_canvasContainer];
   if (press.state == UIGestureRecognizerStateBegan) {
-    _newItemCenterPoint = [press locationInView:self.view];
-    
-    UIView *testView = [self.view hitTest:_newItemCenterPoint withEvent:nil];
+    UIView *testView = [self.view hitTest:loc withEvent:nil];
+    if (testView == _newButton || testView == _loadButton || testView == _rearrangeButton) {
+      return;
+    }
     if ([_canvasButtons containsObject:testView]) {
       [self _showButtonEditChoicesForButton:(MCanvasButton *)testView];
     } else {
-      [self _startNewButtonFlow];
+      loc.x = round(loc.x / 10) * 10;
+      loc.y = round(loc.y / 10) * 10;
+      [self _startNewButtonFlowAtLocation:loc];
     }
   }
 }
@@ -126,39 +130,54 @@
 
 #pragma mark -- New Button Flow
 
-- (void)_startNewButtonFlow {
+- (void)_startNewButtonFlowAtLocation:(CGPoint)location {
   if (_lockedScene) {
     return;
   }
-  [BWFullscreenInputView showInView:self.view
-                              title:nil
-                    placeholderText:@"New Button"
-                         completion:^(BOOL didCancel, NSString *outputString) {
-    if (!didCancel) {
-      [self _getSelectedMayaAttributesForNewButtonNamed:outputString];
+  MCommand *command = [[MCommand alloc] init];
+  
+  MCanvasButton *button = [self newButtonWithCommand:command];
+  button.center = location;
+  
+  [self _showEditButtonType:button withCompletion:^(MCanvasButton *editedButton) {
+    if (button.command.commandType == MCommandTypeCustomCommand ||
+        button.command.commandType == MCommandTypeSelection) {
+      [self _showEditButtonTitle:button withCompletion:^(MCanvasButton *editedButton) {
+        [self _loadSelectionsForButton:button withCompletion:^(MCanvasButton *editedButton) {
+          [self _saveToCreatedScene];
+        }];
+      }];
+    } else {
+      [self _loadSelectionsForButton:button withCompletion:^(MCanvasButton *editedButton) {
+        [self _saveToCreatedScene];
+      }];
     }
   }];
+  
 }
 
-- (void)_getSelectedMayaAttributesForNewButtonNamed:(NSString *)name {
-  [[MCStreamClient sharedClient] sendPyCommand:@"cmds.ls(sl=True)" withCompletion:^(NSString *returned) {
-    NSString *stripped = [returned stringByReplacingOccurrencesOfString:@"\n" withString:@""];
-    [self _addNewSelectionButtonWithItems:stripped andName:name atLocation:_newItemCenterPoint];
-  } withFailure:^{
-    
-  }];
-}
-
-- (void)_addNewSelectionButtonWithItems:(NSString *)items andName:(NSString *)name atLocation:(CGPoint)center {
-  MCanvasButton *newButton = [[MCanvasButton alloc] initWithFrame:CGRectZero];
-  [newButton setTitle:name forState:UIControlStateNormal];
-  [self _layoutButton:newButton atCenter:center];
-  [_selections addObject:items];
+- (MCanvasButton *)newButtonWithCommand:(MCommand *)command {
+  MCanvasButton *newButton = [[MCanvasButton alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
+  newButton.command = command;
   [_canvasButtons addObject:newButton];
   [_canvasContainer addSubview:newButton];
   [newButton addTarget:self action:@selector(_canvasButtonPressed:) forControlEvents:UIControlEventTouchUpInside];
-  [self _saveToCreatedScene];
+  return newButton;
 }
+
+#pragma mark -- Button Functions
+
+- (void)_layoutButton:(MCanvasButton *)button atCenter:(CGPoint)center {
+  CGSize size = [button sizeThatFits:self.view.bounds.size];
+  size.width += 40;
+  size.height += 22;
+  button.bounds = CGRectMake(0, 0, size.width, size.height);
+  center.x = round(center.x / 10) * 10;
+  center.y = round(center.y / 10) * 10;
+  button.center = center;
+}
+
+#pragma mark -- Scene Flows
 
 - (void)_showOpenSceneSelection {
   if (_availableScenes.count == 0) {
@@ -179,42 +198,20 @@
   }];
 }
 
-- (void)_layoutButton:(MCanvasButton *)button atCenter:(CGPoint)center {
-  CGSize size = [button sizeThatFits:self.view.bounds.size];
-  size.width += 40;
-  size.height += 22;
-  button.bounds = CGRectMake(0, 0, size.width, size.height);
-  center.x = round(center.x / 10) * 10;
-  center.y = round(center.y / 10) * 10;
-  button.center = center;
+- (void)_showNewSceneNameDialog {
+  [BWFullscreenInputView showInView:self.view
+                              title:nil
+                    placeholderText:@"New Scene"
+                         completion:^(BOOL didCancel, NSString *outputString) {
+                           if (!didCancel) {
+                             NSCharacterSet *charactersToRemove = [[NSCharacterSet alphanumericCharacterSet] invertedSet];
+                             NSString *strippedReplacement = [[outputString componentsSeparatedByCharactersInSet:charactersToRemove] componentsJoinedByString:@""];
+                             [self _createSceneNamed:strippedReplacement];
+                           }
+                         }];
 }
 
-#pragma mark -- Action Responders
-
-- (void)_canvasButtonPressed:(UIButton *)canvasButton {
-  NSInteger idx = [_canvasButtons indexOfObject:canvasButton];
-  if (idx != NSNotFound) {
-    NSString *selection = _selections[idx];
-    NSString *pyCommand = [NSString stringWithFormat:@"cmds.select(%@, r=True)", selection];
-    [[MCStreamClient sharedClient] sendPyCommand:pyCommand withCompletion:^(NSString *response) {
-      
-    } withFailure:^{
-      
-    }];
-  }
-}
-
-- (void)_openScenePressed:(id)sender {
-  [self _getSavedSceneNamesFromMaya];
-}
-
-- (void)_newScenePressed:(id)sender {
-  [self _showNewSceneNameDialog];
-}
-
-- (void)_rearrangeScenePressed:(id)sender {
-  [self _startRearrangingScene];
-}
+#pragma mark -- Scene Management
 
 - (void)_startRearrangingScene {
   if (_panGesture.enabled) {
@@ -244,82 +241,137 @@
   }
   _lockedScene = NO;
   [_canvasButtons removeAllObjects];
-  [_selections removeAllObjects];
   _currentLoadedScene = nil;
 }
 
-- (void)_showNewSceneNameDialog {
-  [BWFullscreenInputView showInView:self.view
-                              title:nil
-                    placeholderText:@"New Scene"
-                         completion:^(BOOL didCancel, NSString *outputString) {
-    if (!didCancel) {
-      NSCharacterSet *charactersToRemove = [[NSCharacterSet alphanumericCharacterSet] invertedSet];
-      NSString *strippedReplacement = [[outputString componentsSeparatedByCharactersInSet:charactersToRemove] componentsJoinedByString:@""];
-      [self _createSceneNamed:strippedReplacement];
-    }
-  }];
+#pragma mark -- Action Responders
+
+- (void)_canvasButtonPressed:(MCanvasButton *)canvasButton {
+  [canvasButton.command sendCommandToMaya];
+}
+
+- (void)_openScenePressed:(id)sender {
+  [self _getSavedSceneNamesFromMaya];
+}
+
+- (void)_newScenePressed:(id)sender {
+  [self _showNewSceneNameDialog];
+}
+
+- (void)_rearrangeScenePressed:(id)sender {
+  [self _startRearrangingScene];
 }
 
 - (void)_mayaDidConnect:(NSNotification *)notification {
   [self _getSavedSceneNamesFromMaya];
+  [self _sendMoveLoop];
 }
 
-#pragma mark -- Button Editing
+- (void)_sendMoveLoop {
+  NSString *pyCommand = [NSString stringWithFormat:@"cmds.xform(t=(%f, 0, 0))", _x];
+  [[MCStreamClient sharedClient] sendPyCommand:pyCommand withCompletion:^(NSString *response) {
+    [self performSelector:@selector(_sendMoveLoop) withObject:nil afterDelay:0.041];
+  } withFailure:^{
+    
+  }];
+  
+  
+  _x += 0.03;
+  if (_x > 10) {
+    _x = 0;
+  }
+}
+
+#pragma mark -- Button Editing Flows
 
 - (void)_showButtonEditChoicesForButton:(MCanvasButton *)button {
   if (_lockedScene) {
     return;
   }
   [BWFullScreenSelectionView showSelectionInView:self.view
-                                     withOptions:@[@"Edit Title", @"Reload Selections", @"Delete"]
+                                     withOptions:@[@"Edit Title", @"Change Type", @"Reload Selections", @"Delete"]
                                       completion:^(BOOL didCancel, NSInteger selected) {
                                         if (!didCancel && selected != NSNotFound) {
                                           if (selected == 0) {
-                                            [self _editButtonTitle:button];
+                                            [self _showEditButtonTitle:button withCompletion:^(MCanvasButton *editedButton) {
+                                              [self _saveToCreatedScene];
+                                            }];
                                           }
                                           if (selected == 1) {
-                                            [self _reloadSelectionsForButton:button];
+                                            [self _showEditButtonType:button withCompletion:^(MCanvasButton *editedButton) {
+                                              [self _saveToCreatedScene];
+                                            }];
                                           }
                                           if (selected == 2) {
+                                            [self _loadSelectionsForButton:button withCompletion:^(MCanvasButton *editedButton) {
+                                              [self _saveToCreatedScene];
+                                            }];
+                                          }
+                                          if (selected == 3) {
                                             [self _deleteButton:button];
                                           }
                                         }
                                       }];
 }
 
-- (void)_editButtonTitle:(MCanvasButton *)button {
+- (void)_showEditButtonType:(MCanvasButton *)button withCompletion:(void (^)(MCanvasButton *editedButton))callBack {
+  NSArray *commandTypes = [MCommand commandTitles];
+  [BWFullScreenSelectionView showSelectionInView:self.view
+                                     withOptions:commandTypes
+                                      completion:^(BOOL didCancel, NSInteger selected) {
+                                        if (!didCancel && selected < commandTypes.count) {
+                                          button.command.commandType = selected;
+                                          if (button.command.commandType != MCommandTypeSelection) {
+                                            button.command.name = commandTypes[selected];
+                                            [button updateTitle];
+                                            [self _layoutButton:button atCenter:button.center];
+                                          }
+                                          if (button.command.commandType == MCommandTypeCustomCommand) {
+                                            [self _showEditCustomCommand:button withCompletion:callBack];
+                                          } else if (callBack) {
+                                            callBack(button);
+                                          }
+                                        }
+                                      }];
+}
+
+- (void)_showEditButtonTitle:(MCanvasButton *)button withCompletion:(void (^)(MCanvasButton *editedButton))callBack {
   [BWFullscreenInputView showInView:self.view title:nil placeholderText:@"Button Name" completion:^(BOOL didCancel, NSString *outputString) {
     if (!didCancel) {
-      [button setTitle:outputString forState:UIControlStateNormal];
+      button.command.name = outputString;
+      [button updateTitle];
       [self _layoutButton:button atCenter:button.center];
-      [self _saveToCreatedScene];
+      if (callBack) {
+        callBack(button);
+      }
     }
   }];
 }
 
-- (void)_reloadSelectionsForButton:(MCanvasButton *)button {
-  NSInteger idx = [_canvasButtons indexOfObject:button];
-  if (idx == NSNotFound) {
-    return;
-  }
-  [[MCStreamClient sharedClient] sendPyCommand:@"cmds.ls(sl=True)" withCompletion:^(NSString *returned) {
-    NSString *stripped = [returned stringByReplacingOccurrencesOfString:@"\n" withString:@""];
-    _selections[idx] = stripped;
-    [self _saveToCreatedScene];
-  } withFailure:^{
-    
+- (void)_showEditCustomCommand:(MCanvasButton *)button withCompletion:(void (^)(MCanvasButton *editedButton))callBack {
+  BWFullscreenInputView *inputView = [BWFullscreenInputView showInView:self.view title:@"Enter a python command. Use 'cmds.' to access Maya commands." placeholderText:@"Python Command" completion:^(BOOL didCancel, NSString *outputString) {
+    if (!didCancel) {
+      button.command.mCommand = outputString;
+      if (callBack) {
+        callBack(button);
+      }
+    }
+  }];
+  inputView.textEntryField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+  inputView.textEntryField.autocorrectionType = UITextAutocorrectionTypeNo;
+}
+
+- (void)_loadSelectionsForButton:(MCanvasButton *)button withCompletion:(void (^)(MCanvasButton *editedButton))callBack {
+  [button.command loadSelectionsFromMayaIfNecesarry:^{
+    if (callBack) {
+      callBack(button);
+    }
   }];
 }
 
 - (void)_deleteButton:(MCanvasButton *)button {
-  NSInteger idx = [_canvasButtons indexOfObject:button];
-  if (idx == NSNotFound) {
-    return;
-  }
   [button removeFromSuperview];
   [_canvasButtons removeObject:button];
-  [_selections removeObjectAtIndex:idx];
   [self _saveToCreatedScene];
 }
 
@@ -352,7 +404,6 @@
 }
 
 - (void)_createSceneNamed:(NSString *)sceneName {
-  // This adds the mselscene namespace
   [self _clearScene];
   NSString *fullPath = [NSString stringWithFormat:@"mselscene%@", sceneName];
   NSString *pyCommand = [NSString stringWithFormat:@"cmds.namespace(set=':');cmds.scriptNode(n='%@');cmds.addAttr('%@', longName='sls', dataType='string');", fullPath, fullPath];
@@ -364,40 +415,58 @@
   }];
 }
 
-- (void)_saveToSceneNamed:(NSString *)sceneName jsonString:(NSString *)json {
-  
-  NSString *escaped = [json stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
-  NSString *attr = [NSString stringWithFormat:@"%@.sls", sceneName];
-  NSString *pyCommand = [NSString stringWithFormat:@"cmds.setAttr('%@', edit=True, lock=False); cmds.setAttr('%@', \"%@\", type='string'); cmds.setAttr('%@', edit=True, lock=True)", attr,attr,escaped,attr];
-
-  [[MCStreamClient sharedClient] sendPyCommand:pyCommand withCompletion:^(NSString *response) {
-    
-  } withFailure:^{
-    
-  }];
-}
-
 - (void)_saveToCreatedScene {
   if (!_canvasButtons.count) {
     return;
   }
   NSMutableArray *jsonRepresentation = [NSMutableArray array];
   
-  for (NSInteger idx = 0; idx < _canvasButtons.count; idx ++) {
-    MCanvasButton *button = _canvasButtons[idx];
-    NSString *selection = _selections[idx];
-    NSString *stripped = [selection stringByReplacingOccurrencesOfString:@"\n" withString:@""];
-    NSDictionary *dictionary = @{@"x" : @(button.center.x),
-                                 @"y" : @(button.center.y),
-                                 @"s" : stripped,
-                                 @"n" : button.titleLabel.text};
-    [jsonRepresentation addObject:dictionary];
+  for (MCanvasButton *button in _canvasButtons) {
+    NSMutableDictionary *dict = [NSMutableDictionary new];
+    
+    dict[@"x"] = @(button.center.x);
+    dict[@"y"] = @(button.center.y);
+    
+    if (button.command) {
+      dict[@"t"] = @(button.command.commandType);
+    }
+    
+    if (button.command.name) {
+      dict[@"n"] = button.command.name;
+    }
+    
+    if (button.command.mSelection) {
+      dict[@"s"] = button.command.mSelection;
+    }
+    
+    if (button.command.mCommand) {
+      dict[@"c"] = button.command.mCommand;
+    }
+    
+    if (button.command.mSelection) {
+      dict[@"s"] = button.command.mSelection;
+    }
+    
+    [jsonRepresentation addObject:dict];
   }
   NSError *error;
   NSData *jsonData = [NSJSONSerialization dataWithJSONObject:jsonRepresentation options:0 error:&error];
   NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
   
   [self _saveToSceneNamed:_currentLoadedScene jsonString:jsonString];
+}
+
+- (void)_saveToSceneNamed:(NSString *)sceneName jsonString:(NSString *)json {
+  
+  NSString *escaped = [json stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
+  NSString *attr = [NSString stringWithFormat:@"%@.sls", sceneName];
+  NSString *pyCommand = [NSString stringWithFormat:@"cmds.setAttr('%@', edit=True, lock=False); cmds.setAttr('%@', \"%@\", type='string'); cmds.setAttr('%@', edit=True, lock=True)", attr,attr,escaped,attr];
+  
+  [[MCStreamClient sharedClient] sendPyCommand:pyCommand withCompletion:^(NSString *response) {
+    
+  } withFailure:^{
+    
+  }];
 }
 
 - (void)_unwrapScene:(NSString *)sceneName withJSON:(NSString *)json {
@@ -413,24 +482,40 @@
   } else {
     _lockedScene = NO;
   }
+  _rearrangeButton.enabled = !_lockedScene;
   
   NSData *metOfficeData = [json dataUsingEncoding:NSUTF8StringEncoding];
   NSError *error;
   id jsonObject = [NSJSONSerialization JSONObjectWithData:metOfficeData options:kNilOptions error:&error];
   if ([jsonObject isKindOfClass:[NSArray class]]) {
     NSArray *buttons = (NSArray *)jsonObject;
-    for (NSDictionary *dictionary in buttons) {
+    for (id obj in buttons) {
+      if (![obj isKindOfClass:[NSDictionary class]]) {
+        continue;
+      }
+      NSDictionary *dictionary = (NSDictionary *)obj;
+      MCommand *command = [[MCommand alloc] init];
+      command.name = dictionary[@"n"];
+      command.mCommand = dictionary[@"c"];
       NSString *selections = dictionary[@"s"];
       if (namespaceString.length) {
         NSString *replacementString = [NSString stringWithFormat:@"u'%@", namespaceString];
         selections = [selections stringByReplacingOccurrencesOfString:@"u'" withString:replacementString];
       }
-      CGPoint buttonCenter = CGPointMake([dictionary[@"x"] floatValue], [dictionary[@"y"] floatValue]);
-      [self _addNewSelectionButtonWithItems:selections andName:dictionary[@"n"] atLocation:buttonCenter];
+      command.mSelection = selections;
+      command.commandType = [dictionary[@"t"] integerValue];
+      
+      MCanvasButton *button = [self newButtonWithCommand:command];
+      CGPoint center = button.center;
+      if (dictionary[@"x"] && dictionary[@"y"]) {
+        center = CGPointMake([dictionary[@"x"] floatValue], [dictionary[@"y"] floatValue]);
+      }
+      [button updateTitle];
+      [self _layoutButton:button atCenter:center];
     }
   }
   if (_lockedScene) {
-    [[[UIAlertView alloc] initWithTitle:@"Scene is locked" message:@"This scene is loaded from a referenced maya file.\nEditing for this scene is disabled. To edit this scene please open the referenced file." delegate:nil cancelButtonTitle:nil otherButtonTitles:nil] show];
+    [[[UIAlertView alloc] initWithTitle:@"Scene is locked" message:@"This scene is loaded from a referenced maya file.\nEditing for this scene is disabled. To edit this scene please open the referenced file in Maya." delegate:nil cancelButtonTitle:@"Okay" otherButtonTitles:nil] show];
   }
 }
 
